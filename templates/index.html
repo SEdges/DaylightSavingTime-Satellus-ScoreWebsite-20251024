@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>夏令时乐队 Daylight Saving Time - 乐谱库</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+
+<body>
+  <header>
+    <h1>🎷 夏令时 Daylight Saving Time</h1>
+    <p class="subtitle">爵士乐队 · 乐谱分享</p>
+  </header>
+
+  <main>
+    {% if songs %}
+    <div class="songs-grid">
+      {% for song in songs %}
+      <div class="song-card">
+        <h2>{{ song.title }}</h2>
+        <div class="song-info">
+          <p><strong>作曲：</strong>{{ song.composer }}</p>
+          <p><strong>风格：</strong>{{ song.style }}</p>
+          <p><strong>调性：</strong>{{ song.key }} | <strong>速度：</strong>{{ song.tempo }}</p>
+          <p class="rehearsal-date">排练日期：{{ song.rehearsal_date }}</p>
+        </div>
+        <div class="action-buttons">
+          <a href="{{ url_for('preview', filename=song.filename) }}" class="preview-btn">
+            👁️ 预览
+          </a>
+          <a href="{{ url_for('practice', filename=song.filename) }}" class="practice-btn">
+            🎵 练习
+          </a>
+          <a href="{{ url_for('download', filename=song.filename) }}" class="download-btn">
+            📥 下载
+          </a>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+      <p>暂无曲目，请联系乐队补充曲谱~</p>
+    </div>
+    {% endif %}
+  </main>
+
+  <footer>
+    <div class="contact-section">
+      <h3>联系我们</h3>
+      <div class="contact-info">
+        <p>📧 邮箱：<a href="mailto:lxxyyy_1@qq.com">lxxyyy_1@qq.com</a></p>
+        <p>🎵 Bilibili：@桃花岛岛主ouo</p>
+      </div>
+    </div>
+    <p class="copyright">© 2025 Daylight Saving Time | Made with ❤️ and Python</p>
+  </footer>
+</body>
+
+</html>

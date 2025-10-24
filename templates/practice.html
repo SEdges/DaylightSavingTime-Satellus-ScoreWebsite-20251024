@@ -1,0 +1,908 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% if song %}{{ song.title }} - {% endif %}练习模式</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <style>
+        .practice-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        .practice-header {
+            background: white;
+            padding: 2rem;
+            border-radius: 12px;
+            margin-bottom: 2rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .practice-header h1 {
+            color: #667eea;
+            margin-bottom: 0.5rem;
+        }
+
+        .practice-layout {
+            display: grid;
+            grid-template-columns: 1fr 400px;
+            gap: 2rem;
+        }
+
+        @media (max-width: 1024px) {
+            .practice-layout {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .score-panel {
+            background: white;
+            border-radius: 12px;
+            padding: 1.5rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .tools-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .tool-card {
+            background: white;
+            border-radius: 12px;
+            padding: 1.5rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .tool-card h3 {
+            color: #667eea;
+            margin-bottom: 1rem;
+            font-size: 1.2rem;
+        }
+
+        /* 节拍器 */
+        .metronome-display {
+            text-align: center;
+            margin: 1.5rem 0;
+        }
+
+        .bpm-display {
+            font-size: 3rem;
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .bpm-label {
+            color: #888;
+            margin-top: 0.5rem;
+        }
+
+        .bpm-slider {
+            width: 100%;
+            margin: 1rem 0;
+        }
+
+        .metronome-controls {
+            display: flex;
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+
+        .metronome-controls button {
+            flex: 1;
+            padding: 0.75rem;
+            border: none;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-start {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-start:hover {
+            background: #5568d3;
+        }
+
+        .btn-stop {
+            background: #e74c3c;
+            color: white;
+        }
+
+        .btn-stop:hover {
+            background: #c0392b;
+        }
+
+        .beat-indicator {
+            display: flex;
+            justify-content: center;
+            gap: 0.5rem;
+            margin-top: 1rem;
+        }
+
+        .beat-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #ddd;
+            transition: all 0.1s;
+        }
+
+        .beat-dot.active {
+            background: #667eea;
+            transform: scale(1.5);
+        }
+
+        /* 和弦编辑器 */
+        .chord-editor {
+            margin-top: 1rem;
+        }
+
+        .chord-input-group {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .chord-input-group input {
+            flex: 1;
+            padding: 0.5rem;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 1rem;
+        }
+
+        .chord-input-group button {
+            padding: 0.5rem 1rem;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .chord-input-group button:hover {
+            background: #5568d3;
+        }
+
+        .chord-progression {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            margin-top: 1rem;
+            min-height: 60px;
+            padding: 1rem;
+            background: #f8f9fa;
+            border-radius: 6px;
+        }
+
+        .chord-chip {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: #667eea;
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            font-weight: 600;
+        }
+
+        .chord-chip .bars {
+            font-size: 0.85rem;
+            opacity: 0.8;
+        }
+
+        .chord-chip .remove {
+            cursor: pointer;
+            opacity: 0.7;
+            transition: opacity 0.2s;
+        }
+
+        .chord-chip .remove:hover {
+            opacity: 1;
+        }
+
+        .playback-controls {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 1rem;
+        }
+
+        .playback-controls button {
+            flex: 1;
+            padding: 0.75rem;
+            border: none;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-play {
+            background: #27ae60;
+            color: white;
+        }
+
+        .btn-play:hover {
+            background: #229954;
+        }
+
+        .btn-pause {
+            background: #f39c12;
+            color: white;
+        }
+
+        .btn-pause:hover {
+            background: #e67e22;
+        }
+
+        .btn-clear {
+            background: #95a5a6;
+            color: white;
+        }
+
+        .btn-clear:hover {
+            background: #7f8c8d;
+        }
+
+        .chord-presets {
+            margin-top: 1rem;
+        }
+
+        .chord-presets h4 {
+            font-size: 0.9rem;
+            color: #666;
+            margin-bottom: 0.5rem;
+        }
+
+        .preset-buttons {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+
+        .preset-btn {
+            padding: 0.4rem 0.8rem;
+            background: #f0f0f0;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            transition: all 0.2s;
+        }
+
+        .preset-btn:hover {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+
+        .under-construction {
+            text-align: center;
+            padding: 3rem 1rem;
+            color: #999;
+        }
+
+        .construction-icon {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+        }
+
+        .under-construction h4 {
+            font-size: 1.2rem;
+            color: #666;
+            margin-bottom: 0.5rem;
+        }
+
+        .under-construction p {
+            font-size: 0.95rem;
+        }
+
+        .back-link {
+            display: inline-block;
+            margin-top: 2rem;
+            color: #667eea;
+            text-decoration: none;
+            font-weight: 600;
+        }
+
+        .back-link:hover {
+            text-decoration: underline;
+        }
+
+        .pdf-container {
+            width: 100%;
+            height: 800px;
+            overflow-y: auto;
+            overflow-x: hidden;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background: #525252;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 1rem;
+            gap: 1rem;
+        }
+
+        .pdf-page-canvas {
+            max-width: 100%;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+            background: white;
+        }
+
+        /* 自动滚动控制 */
+        .scroll-controls {
+            margin-top: 1rem;
+            padding-top: 1rem;
+            border-top: 1px solid #eee;
+        }
+
+        .scroll-controls h4 {
+            font-size: 0.95rem;
+            color: #666;
+            margin-bottom: 0.75rem;
+        }
+
+        .scroll-speed-control {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 1rem;
+        }
+
+        .scroll-speed-control label {
+            font-size: 0.9rem;
+            color: #666;
+            min-width: 60px;
+        }
+
+        .scroll-speed-slider {
+            flex: 1;
+        }
+
+        .scroll-speed-value {
+            font-weight: 600;
+            color: #667eea;
+            min-width: 30px;
+            text-align: center;
+        }
+
+        .scroll-buttons {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .scroll-buttons button {
+            flex: 1;
+            padding: 0.75rem;
+            border: none;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-scroll-start {
+            background: #27ae60;
+            color: white;
+        }
+
+        .btn-scroll-start:hover {
+            background: #229954;
+        }
+
+        .btn-scroll-pause {
+            background: #f39c12;
+            color: white;
+        }
+
+        .btn-scroll-pause:hover {
+            background: #e67e22;
+        }
+
+        .btn-scroll-reset {
+            background: #95a5a6;
+            color: white;
+        }
+
+        .btn-scroll-reset:hover {
+            background: #7f8c8d;
+        }
+
+        .scroll-indicator {
+            margin-top: 0.75rem;
+            padding: 0.5rem;
+            background: #f8f9fa;
+            border-radius: 6px;
+            text-align: center;
+            font-size: 0.85rem;
+            color: #666;
+        }
+
+        .scroll-indicator.active {
+            background: #e8f5e9;
+            color: #27ae60;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="practice-container">
+        <div class="practice-header">
+            {% if song %}
+            <h1>🎵 {{ song.title }}</h1>
+            <p>{{ song.composer }} | {{ song.style }} | {{ song.key }} | {{ song.tempo }}</p>
+            {% else %}
+            <h1>🎵 练习模式</h1>
+            {% endif %}
+        </div>
+
+        <div class="practice-layout">
+            <!-- 乐谱显示 -->
+            <div class="score-panel">
+                <h3>乐谱</h3>
+
+                <!-- 自动滚动控制 -->
+                <div class="scroll-controls">
+                    <h4>📜 自动滚动</h4>
+                    <div class="scroll-speed-control">
+                        <label>速度：</label>
+                        <input type="range" class="scroll-speed-slider" id="scroll-speed" min="1" max="10" value="5">
+                        <span class="scroll-speed-value" id="scroll-speed-value">5</span>
+                    </div>
+                    <div class="scroll-buttons">
+                        <button class="btn-scroll-start" id="scroll-start">▶ 开始滚动</button>
+                        <button class="btn-scroll-pause" id="scroll-pause">⏸ 暂停</button>
+                        <button class="btn-scroll-reset" id="scroll-reset">↺ 重置</button>
+                    </div>
+                    <div class="scroll-indicator" id="scroll-indicator">
+                        滚动已停止
+                    </div>
+                </div>
+
+                <div class="pdf-container" id="pdf-container"></div>
+            </div>
+
+            <!-- 工具面板 -->
+            <div class="tools-panel">
+                <!-- 节拍器 -->
+                <div class="tool-card">
+                    <h3>⏱️ 节拍器</h3>
+                    <div class="metronome-display">
+                        <div class="bpm-display" id="bpm-display">120</div>
+                        <div class="bpm-label">BPM</div>
+                    </div>
+                    <input type="range" class="bpm-slider" id="bpm-slider" min="40" max="240" value="120">
+                    <div class="beat-indicator" id="beat-indicator">
+                        <div class="beat-dot"></div>
+                        <div class="beat-dot"></div>
+                        <div class="beat-dot"></div>
+                        <div class="beat-dot"></div>
+                    </div>
+                    <div class="metronome-controls">
+                        <button class="btn-start" id="metronome-start">▶ 开始</button>
+                        <button class="btn-stop" id="metronome-stop">⏹ 停止</button>
+                    </div>
+                </div>
+
+                <!-- 和弦进行编辑器 -->
+                <div class="tool-card">
+                    <h3>🎹 和弦进行</h3>
+                    <div class="under-construction">
+                        <div class="construction-icon">🚧</div>
+                        <h4>功能开发中</h4>
+                        <p>和弦播放功能正在开发，敬请期待...</p>
+                    </div>
+                    <!-- 
+                    <div class="chord-editor">
+                        <div class="chord-input-group">
+                            <input type="text" id="chord-input" placeholder="输入和弦 (如 Cmaj7)" />
+                            <input type="number" id="bars-input" placeholder="小节数" value="1" min="1" max="8" style="max-width: 80px;" />
+                            <button id="add-chord">添加</button>
+                        </div>
+                        <div class="chord-progression" id="chord-progression">
+                            <span style="color: #999;">暂无和弦，请添加...</span>
+                        </div>
+                        <div class="playback-controls">
+                            <button class="btn-play" id="play-chords">▶ 播放</button>
+                            <button class="btn-pause" id="pause-chords">⏸ 暂停</button>
+                            <button class="btn-clear" id="clear-chords">清空</button>
+                        </div>
+                        <div class="chord-presets">
+                            <h4>常用进行：</h4>
+                            <div class="preset-buttons">
+                                <button class="preset-btn" data-preset="ii-V-I">ii-V-I</button>
+                                <button class="preset-btn" data-preset="I-vi-IV-V">I-vi-IV-V</button>
+                                <button class="preset-btn" data-preset="blues">Blues</button>
+                                <button class="preset-btn" data-preset="rhythm-changes">Rhythm Changes</button>
+                            </div>
+                        </div>
+                    </div>
+                    -->
+                </div>
+            </div>
+
+            <a href="{{ url_for('index') }}" class="back-link">← 返回曲目列表</a>
+        </div>
+
+        <script>
+            // ========== 节拍器 ==========
+            let metronomeInterval = null;
+            let currentBeat = 0;
+            let bpm = 120;
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+
+            // 播放节拍音
+            function playClick(isAccent = false) {
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+
+                oscillator.frequency.value = isAccent ? 1000 : 800;
+                gainNode.gain.value = isAccent ? 0.3 : 0.2;
+
+                oscillator.start(audioContext.currentTime);
+                oscillator.stop(audioContext.currentTime + 0.05);
+            }
+
+            // 更新节拍指示器
+            function updateBeatIndicator() {
+                const dots = document.querySelectorAll('.beat-dot');
+                dots.forEach((dot, index) => {
+                    dot.classList.toggle('active', index === currentBeat);
+                });
+            }
+
+            // 开始节拍器
+            document.getElementById('metronome-start').addEventListener('click', () => {
+                if (metronomeInterval) return;
+
+                currentBeat = 0;
+                const interval = 60000 / bpm;
+
+                playClick(true);
+                updateBeatIndicator();
+
+                metronomeInterval = setInterval(() => {
+                    currentBeat = (currentBeat + 1) % 4;
+                    playClick(currentBeat === 0);
+                    updateBeatIndicator();
+                }, interval);
+            });
+
+            // 停止节拍器
+            document.getElementById('metronome-stop').addEventListener('click', () => {
+                if (metronomeInterval) {
+                    clearInterval(metronomeInterval);
+                    metronomeInterval = null;
+                    currentBeat = 0;
+                    updateBeatIndicator();
+                }
+            });
+
+            // BPM 滑块
+            document.getElementById('bpm-slider').addEventListener('input', (e) => {
+                bpm = parseInt(e.target.value);
+                document.getElementById('bpm-display').textContent = bpm;
+
+                // 如果正在播放，重启节拍器
+                if (metronomeInterval) {
+                    document.getElementById('metronome-stop').click();
+                    document.getElementById('metronome-start').click();
+                }
+            });
+
+            // ========== 和弦播放器（待开发）==========
+            /*
+            let chordProgression = [];
+            let isPlaying = false;
+            let playbackInterval = null;
+            let currentChordIndex = 0;
+    
+            // 和弦音符映射（简化版）
+            const chordNotes = {
+                'C': [261.63, 329.63, 392.00],
+                'Cmaj7': [261.63, 329.63, 392.00, 493.88],
+                'Cm7': [261.63, 311.13, 392.00, 466.16],
+                'C7': [261.63, 329.63, 392.00, 466.16],
+                'D': [293.66, 369.99, 440.00],
+                'Dm7': [293.66, 349.23, 440.00, 523.25],
+                'E': [329.63, 415.30, 493.88],
+                'Em7': [329.63, 392.00, 493.88, 587.33],
+                'F': [349.23, 440.00, 523.25],
+                'Fmaj7': [349.23, 440.00, 523.25, 659.25],
+                'G': [392.00, 493.88, 587.33],
+                'G7': [392.00, 493.88, 587.33, 698.46],
+                'A': [440.00, 554.37, 659.25],
+                'Am7': [440.00, 523.25, 659.25, 783.99],
+                'B': [493.88, 622.25, 739.99],
+                'Bm7': [493.88, 587.33, 739.99, 880.00],
+            };
+    
+            // 播放和弦
+            function playChord(chordName) {
+                const notes = chordNotes[chordName] || chordNotes['C'];
+                
+                notes.forEach(freq => {
+                    const oscillator = audioContext.createOscillator();
+                    const gainNode = audioContext.createGain();
+                    
+                    oscillator.connect(gainNode);
+                    gainNode.connect(audioContext.destination);
+                    
+                    oscillator.frequency.value = freq;
+                    oscillator.type = 'sine';
+                    gainNode.gain.setValueAtTime(0.1, audioContext.currentTime);
+                    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 1);
+                    
+                    oscillator.start(audioContext.currentTime);
+                    oscillator.stop(audioContext.currentTime + 1);
+                });
+            }
+    
+            // 添加和弦
+            function addChord(chord, bars) {
+                chordProgression.push({ chord, bars: parseInt(bars) });
+                renderChordProgression();
+            }
+    
+            // 渲染和弦进行
+            function renderChordProgression() {
+                const container = document.getElementById('chord-progression');
+                if (chordProgression.length === 0) {
+                    container.innerHTML = '<span style="color: #999;">暂无和弦，请添加...</span>';
+                    return;
+                }
+                
+                container.innerHTML = chordProgression.map((item, index) => `
+                    <div class="chord-chip">
+                        <span>${item.chord}</span>
+                        <span class="bars">${item.bars}小节</span>
+                        <span class="remove" onclick="removeChord(${index})">✕</span>
+                    </div>
+                `).join('');
+            }
+    
+            // 删除和弦
+            function removeChord(index) {
+                chordProgression.splice(index, 1);
+                renderChordProgression();
+            }
+    
+            // 播放和弦进行
+            function playChordProgression() {
+                if (chordProgression.length === 0 || isPlaying) return;
+                
+                isPlaying = true;
+                currentChordIndex = 0;
+                
+                const barDuration = (60000 / bpm) * 4; // 一个小节的时长
+                
+                function playNext() {
+                    if (currentChordIndex >= chordProgression.length) {
+                        isPlaying = false;
+                        return;
+                    }
+                    
+                    const current = chordProgression[currentChordIndex];
+                    playChord(current.chord);
+                    
+                    currentChordIndex++;
+                    playbackInterval = setTimeout(playNext, barDuration * current.bars);
+                }
+                
+                playNext();
+            }
+    
+            // 暂停播放
+            function pauseChordProgression() {
+                isPlaying = false;
+                if (playbackInterval) {
+                    clearTimeout(playbackInterval);
+                    playbackInterval = null;
+                }
+            }
+    
+            // 事件监听
+            document.getElementById('add-chord').addEventListener('click', () => {
+                const chord = document.getElementById('chord-input').value.trim();
+                const bars = document.getElementById('bars-input').value;
+                if (chord) {
+                    addChord(chord, bars);
+                    document.getElementById('chord-input').value = '';
+                }
+            });
+    
+            document.getElementById('chord-input').addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    document.getElementById('add-chord').click();
+                }
+            });
+    
+            document.getElementById('play-chords').addEventListener('click', playChordProgression);
+            document.getElementById('pause-chords').addEventListener('click', pauseChordProgression);
+            document.getElementById('clear-chords').addEventListener('click', () => {
+                pauseChordProgression();
+                chordProgression = [];
+                renderChordProgression();
+            });
+    
+            // 预设和弦进行
+            const presets = {
+                'ii-V-I': [
+                    { chord: 'Dm7', bars: 2 },
+                    { chord: 'G7', bars: 2 },
+                    { chord: 'Cmaj7', bars: 4 }
+                ],
+                'I-vi-IV-V': [
+                    { chord: 'C', bars: 2 },
+                    { chord: 'Am7', bars: 2 },
+                    { chord: 'F', bars: 2 },
+                    { chord: 'G', bars: 2 }
+                ],
+                'blues': [
+                    { chord: 'C7', bars: 4 },
+                    { chord: 'F7', bars: 2 },
+                    { chord: 'C7', bars: 2 },
+                    { chord: 'G7', bars: 1 },
+                    { chord: 'F7', bars: 1 },
+                    { chord: 'C7', bars: 2 }
+                ],
+                'rhythm-changes': [
+                    { chord: 'Cmaj7', bars: 2 },
+                    { chord: 'Am7', bars: 2 },
+                    { chord: 'Dm7', bars: 2 },
+                    { chord: 'G7', bars: 2 }
+                ]
+            };
+    
+            document.querySelectorAll('.preset-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const preset = btn.dataset.preset;
+                    chordProgression = [...presets[preset]];
+                    renderChordProgression();
+                });
+            });
+    
+            // 暴露给全局
+            window.removeChord = removeChord;
+            */
+
+            // ========== PDF 渲染 ==========
+            const pdfUrl = "{{ url_for('static', filename='scores/' + filename) }}";
+            let pdfDoc = null;
+            const pdfContainer = document.getElementById('pdf-container');
+
+            // 设置 PDF.js worker
+            pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+            // 加载并渲染 PDF
+            async function loadPDF() {
+                try {
+                    pdfDoc = await pdfjsLib.getDocument(pdfUrl).promise;
+                    const numPages = pdfDoc.numPages;
+
+                    // 渲染所有页面
+                    for (let pageNum = 1; pageNum <= numPages; pageNum++) {
+                        const page = await pdfDoc.getPage(pageNum);
+                        const viewport = page.getViewport({ scale: 1.5 });
+
+                        const canvas = document.createElement('canvas');
+                        canvas.className = 'pdf-page-canvas';
+                        const context = canvas.getContext('2d');
+                        canvas.height = viewport.height;
+                        canvas.width = viewport.width;
+
+                        pdfContainer.appendChild(canvas);
+
+                        await page.render({
+                            canvasContext: context,
+                            viewport: viewport
+                        }).promise;
+                    }
+                } catch (error) {
+                    console.error('PDF 加载失败:', error);
+                    pdfContainer.innerHTML = '<p style="color: white; padding: 2rem;">PDF 加载失败</p>';
+                }
+            }
+
+            // ========== 自动滚动功能 ==========
+            let scrollInterval = null;
+            let scrollSpeed = 5;
+            let isScrolling = false;
+
+            const scrollSpeedSlider = document.getElementById('scroll-speed');
+            const scrollSpeedValue = document.getElementById('scroll-speed-value');
+            const scrollIndicator = document.getElementById('scroll-indicator');
+
+            // 更新速度显示
+            scrollSpeedSlider.addEventListener('input', (e) => {
+                scrollSpeed = parseInt(e.target.value);
+                scrollSpeedValue.textContent = scrollSpeed;
+
+                // 如果正在滚动，重启以应用新速度
+                if (isScrolling) {
+                    stopScroll();
+                    startScroll();
+                }
+            });
+
+            // 开始滚动
+            function startScroll() {
+                if (isScrolling) return;
+
+                isScrolling = true;
+                scrollIndicator.textContent = `正在滚动 (速度: ${scrollSpeed})`;
+                scrollIndicator.classList.add('active');
+
+                // 速度映射：1-10 对应 100ms-10ms 的间隔
+                const intervalTime = 110 - (scrollSpeed * 10);
+
+                scrollInterval = setInterval(() => {
+                    // 每次滚动1像素
+                    pdfContainer.scrollBy(0, 1);
+
+                    // 检查是否到底部
+                    const scrollTop = pdfContainer.scrollTop;
+                    const scrollHeight = pdfContainer.scrollHeight;
+                    const clientHeight = pdfContainer.clientHeight;
+
+                    if (scrollTop + clientHeight >= scrollHeight - 10) {
+                        // 到达底部，停止滚动
+                        stopScroll();
+                        scrollIndicator.textContent = '已到达底部';
+                    }
+                }, intervalTime);
+            }
+
+            // 暂停滚动
+            function stopScroll() {
+                if (scrollInterval) {
+                    clearInterval(scrollInterval);
+                    scrollInterval = null;
+                }
+                isScrolling = false;
+                scrollIndicator.classList.remove('active');
+                if (scrollIndicator.textContent.includes('正在滚动')) {
+                    scrollIndicator.textContent = '滚动已暂停';
+                }
+            }
+
+            // 重置滚动
+            function resetScroll() {
+                stopScroll();
+                pdfContainer.scrollTo(0, 0);
+                scrollIndicator.textContent = '已重置到顶部';
+                scrollIndicator.classList.remove('active');
+            }
+
+            // 事件监听
+            document.getElementById('scroll-start').addEventListener('click', startScroll);
+            document.getElementById('scroll-pause').addEventListener('click', stopScroll);
+            document.getElementById('scroll-reset').addEventListener('click', resetScroll);
+
+            // 页面卸载时清理
+            window.addEventListener('beforeunload', () => {
+                if (scrollInterval) {
+                    clearInterval(scrollInterval);
+                }
+            });
+
+            // 初始化 PDF
+            loadPDF();
+        </script>
+</body>
+
+</html>

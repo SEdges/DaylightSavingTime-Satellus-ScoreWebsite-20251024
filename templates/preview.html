@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% if song %}{{ song.title }} - {% endif %}乐谱预览</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <style>
+    .preview-container {
+      max-width: 100%;
+      margin: 0;
+      padding: 0;
+      background: #2a2a2a;
+      min-height: 100vh;
+    }
+
+    .preview-header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      padding: 1.5rem;
+      color: white;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 1rem;
+    }
+
+    .preview-title h1 {
+      font-size: 1.8rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .preview-title p {
+      opacity: 0.9;
+      font-size: 0.95rem;
+    }
+
+    .preview-controls {
+      display: flex;
+      gap: 1rem;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .view-mode-toggle {
+      display: flex;
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 6px;
+      overflow: hidden;
+    }
+
+    .view-mode-toggle button {
+      background: transparent;
+      border: none;
+      color: white;
+      padding: 0.5rem 1rem;
+      cursor: pointer;
+      transition: background 0.2s;
+      font-size: 0.9rem;
+    }
+
+    .view-mode-toggle button.active {
+      background: rgba(255, 255, 255, 0.3);
+    }
+
+    .view-mode-toggle button:hover {
+      background: rgba(255, 255, 255, 0.25);
+    }
+
+    .zoom-controls {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: rgba(255, 255, 255, 0.2);
+      padding: 0.5rem 1rem;
+      border-radius: 6px;
+    }
+
+    .zoom-controls button {
+      background: transparent;
+      border: none;
+      color: white;
+      cursor: pointer;
+      font-size: 1.2rem;
+      padding: 0.25rem 0.5rem;
+      transition: background 0.2s;
+      border-radius: 4px;
+    }
+
+    .zoom-controls button:hover {
+      background: rgba(255, 255, 255, 0.2);
+    }
+
+    .zoom-level {
+      color: white;
+      min-width: 60px;
+      text-align: center;
+      font-size: 0.9rem;
+    }
+
+    .back-btn {
+      background: rgba(255, 255, 255, 0.2);
+      color: white;
+      padding: 0.5rem 1rem;
+      border-radius: 6px;
+      text-decoration: none;
+      transition: background 0.2s;
+    }
+
+    .back-btn:hover {
+      background: rgba(255, 255, 255, 0.3);
+    }
+
+    .pdf-viewer {
+      width: 100%;
+      height: calc(100vh - 100px);
+      border: none;
+    }
+
+    #pdf-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 2rem;
+      gap: 2rem;
+    }
+
+    #pdf-container.scroll-mode {
+      display: flex;
+    }
+
+    #pdf-container.page-mode {
+      display: none;
+    }
+
+    #pdf-container.page-mode.active-page {
+      display: flex;
+    }
+
+    .pdf-canvas {
+      max-width: 100%;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+      background: white;
+    }
+
+    .page-controls {
+      position: fixed;
+      bottom: 2rem;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0, 0, 0, 0.8);
+      padding: 1rem 2rem;
+      border-radius: 50px;
+      display: none;
+      align-items: center;
+      gap: 1.5rem;
+      color: white;
+      z-index: 100;
+    }
+
+    .page-controls.show {
+      display: flex;
+    }
+
+    .page-controls button {
+      background: #667eea;
+      border: none;
+      color: white;
+      padding: 0.5rem 1rem;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .page-controls button:hover:not(:disabled) {
+      background: #5568d3;
+    }
+
+    .page-controls button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .page-info {
+      font-size: 0.95rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="preview-container">
+    <div class="preview-header">
+      <div class="preview-title">
+        {% if song %}
+        <h1>{{ song.title }}</h1>
+        <p>{{ song.composer }} | {{ song.style }} | {{ song.key }}</p>
+        {% else %}
+        <h1>乐谱预览</h1>
+        {% endif %}
+      </div>
+      <div class="preview-controls">
+        <div class="view-mode-toggle">
+          <button id="scroll-mode-btn" class="active">📜 滚动模式</button>
+          <button id="page-mode-btn">📄 翻页模式</button>
+        </div>
+        <div class="zoom-controls">
+          <button id="zoom-out" title="缩小">−</button>
+          <span class="zoom-level" id="zoom-level">100%</span>
+          <button id="zoom-in" title="放大">+</button>
+          <button id="fit-page" title="适应页面">⬍</button>
+        </div>
+        <a href="{{ url_for('index') }}" class="back-btn">← 返回</a>
+      </div>
+    </div>
+
+    <div id="pdf-container" class="scroll-mode"></div>
+
+    <div class="page-controls" id="page-controls">
+      <button id="prev-page">← 上一页</button>
+      <span class="page-info">
+        第 <span id="current-page">1</span> / <span id="total-pages">1</span> 页
+      </span>
+      <button id="next-page">下一页 →</button>
+    </div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script>
+    const pdfUrl = "{{ url_for('static', filename='scores/' + filename) }}";
+    let pdfDoc = null;
+    let currentPage = 1;
+    let totalPages = 0;
+    let isPageMode = false;
+    let currentScale = 1.0;
+    let fitToHeight = true;
+
+    // 设置 PDF.js worker
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+    // 加载 PDF
+    async function loadPDF() {
+      try {
+        pdfDoc = await pdfjsLib.getDocument(pdfUrl).promise;
+        totalPages = pdfDoc.numPages;
+        document.getElementById('total-pages').textContent = totalPages;
+        
+        if (isPageMode) {
+          renderPage(currentPage);
+        } else {
+          renderAllPages();
+        }
+      } catch (error) {
+        console.error('PDF 加载失败:', error);
+        document.getElementById('pdf-container').innerHTML = 
+          '<p style="color: white; text-align: center; padding: 2rem;">PDF 加载失败，请检查文件是否存在</p>';
+      }
+    }
+
+    // 计算缩放比例
+    function calculateScale(page) {
+      if (fitToHeight) {
+        const container = document.getElementById('pdf-container');
+        const containerHeight = window.innerHeight - 150; // 减去 header 和 padding
+        const viewport = page.getViewport({ scale: 1.0 });
+        return containerHeight / viewport.height;
+      }
+      return currentScale;
+    }
+
+    // 更新缩放显示
+    function updateZoomDisplay() {
+      const percentage = Math.round(currentScale * 100);
+      document.getElementById('zoom-level').textContent = percentage + '%';
+    }
+
+    // 渲染单页
+    async function renderPage(pageNum) {
+      const page = await pdfDoc.getPage(pageNum);
+      const scale = calculateScale(page);
+      const viewport = page.getViewport({ scale: scale });
+      
+      const canvas = document.createElement('canvas');
+      canvas.className = 'pdf-canvas';
+      const context = canvas.getContext('2d');
+      canvas.height = viewport.height;
+      canvas.width = viewport.width;
+
+      const container = document.getElementById('pdf-container');
+      container.innerHTML = '';
+      container.appendChild(canvas);
+
+      await page.render({
+        canvasContext: context,
+        viewport: viewport
+      }).promise;
+
+      if (fitToHeight) {
+        currentScale = scale;
+        updateZoomDisplay();
+      }
+    }
+
+    // 渲染所有页（滚动模式）
+    async function renderAllPages() {
+      const container = document.getElementById('pdf-container');
+      container.innerHTML = '';
+
+      for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
+        const page = await pdfDoc.getPage(pageNum);
+        const scale = calculateScale(page);
+        const viewport = page.getViewport({ scale: scale });
+        
+        const canvas = document.createElement('canvas');
+        canvas.className = 'pdf-canvas';
+        const context = canvas.getContext('2d');
+        canvas.height = viewport.height;
+        canvas.width = viewport.width;
+
+        container.appendChild(canvas);
+
+        await page.render({
+          canvasContext: context,
+          viewport: viewport
+        }).promise;
+      }
+
+      if (fitToHeight) {
+        const firstPage = await pdfDoc.getPage(1);
+        currentScale = calculateScale(firstPage);
+        updateZoomDisplay();
+      }
+    }
+
+    // 切换视图模式
+    function switchToScrollMode() {
+      isPageMode = false;
+      document.getElementById('scroll-mode-btn').classList.add('active');
+      document.getElementById('page-mode-btn').classList.remove('active');
+      document.getElementById('page-controls').classList.remove('show');
+      document.getElementById('pdf-container').className = 'scroll-mode';
+      renderAllPages();
+    }
+
+    function switchToPageMode() {
+      isPageMode = true;
+      document.getElementById('page-mode-btn').classList.add('active');
+      document.getElementById('scroll-mode-btn').classList.remove('active');
+      document.getElementById('page-controls').classList.add('show');
+      document.getElementById('pdf-container').className = 'page-mode active-page';
+      renderPage(currentPage);
+    }
+
+    // 翻页控制
+    function goToPrevPage() {
+      if (currentPage > 1) {
+        currentPage--;
+        document.getElementById('current-page').textContent = currentPage;
+        renderPage(currentPage);
+        updatePageButtons();
+      }
+    }
+
+    function goToNextPage() {
+      if (currentPage < totalPages) {
+        currentPage++;
+        document.getElementById('current-page').textContent = currentPage;
+        renderPage(currentPage);
+        updatePageButtons();
+      }
+    }
+
+    function updatePageButtons() {
+      document.getElementById('prev-page').disabled = currentPage === 1;
+      document.getElementById('next-page').disabled = currentPage === totalPages;
+    }
+
+    // 缩放控制
+    function zoomIn() {
+      fitToHeight = false;
+      currentScale = Math.min(currentScale + 0.25, 3.0);
+      updateZoomDisplay();
+      if (isPageMode) {
+        renderPage(currentPage);
+      } else {
+        renderAllPages();
+      }
+    }
+
+    function zoomOut() {
+      fitToHeight = false;
+      currentScale = Math.max(currentScale - 0.25, 0.5);
+      updateZoomDisplay();
+      if (isPageMode) {
+        renderPage(currentPage);
+      } else {
+        renderAllPages();
+      }
+    }
+
+    function fitPage() {
+      fitToHeight = true;
+      if (isPageMode) {
+        renderPage(currentPage);
+      } else {
+        renderAllPages();
+      }
+    }
+
+    // 事件监听
+    document.getElementById('scroll-mode-btn').addEventListener('click', switchToScrollMode);
+    document.getElementById('page-mode-btn').addEventListener('click', switchToPageMode);
+    document.getElementById('prev-page').addEventListener('click', goToPrevPage);
+    document.getElementById('next-page').addEventListener('click', goToNextPage);
+    document.getElementById('zoom-in').addEventListener('click', zoomIn);
+    document.getElementById('zoom-out').addEventListener('click', zoomOut);
+    document.getElementById('fit-page').addEventListener('click', fitPage);
+
+    // 键盘快捷键
+    document.addEventListener('keydown', (e) => {
+      if (isPageMode) {
+        if (e.key === 'ArrowLeft') goToPrevPage();
+        if (e.key === 'ArrowRight') goToNextPage();
+      }
+      // 缩放快捷键
+      if (e.ctrlKey || e.metaKey) {
+        if (e.key === '=' || e.key === '+') {
+          e.preventDefault();
+          zoomIn();
+        } else if (e.key === '-') {
+          e.preventDefault();
+          zoomOut();
+        } else if (e.key === '0') {
+          e.preventDefault();
+          fitPage();
+        }
+      }
+    });
+
+    // 窗口大小改变时重新渲染（仅在适应页面模式下）
+    let resizeTimer;
+    window.addEventListener('resize', () => {
+      if (fitToHeight) {
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(() => {
+          if (isPageMode) {
+            renderPage(currentPage);
+          } else {
+            renderAllPages();
+          }
+        }, 300);
+      }
+    });
+
+    // 初始化
+    loadPDF();
+  </script>
+</body>
+</html>

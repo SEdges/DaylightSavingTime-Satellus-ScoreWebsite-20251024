@@ -1,0 +1,19 @@
+# 夏令时爵士乐队 - 曲目库
+# Readability counts - 用 YAML 让配置一目了然
+
+songs:
+  - title: "Autumn Leaves"
+    composer: "Joseph Kosma"
+    style: "Jazz Standard"
+    key: "Gm"
+    tempo: "Medium Swing"
+    filename: "autumn-leaves.pdf"
+    rehearsal_date: "2024-10-15"
+    
+  - title: "Blue Bossa"
+    composer: "Kenny Dorham"
+    style: "Latin Jazz"
+    key: "Cm"
+    tempo: "Medium Bossa"
+    filename: "blue-bossa.pdf"
+    rehearsal_date: "2024-10-20"
