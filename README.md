@@ -2,6 +2,8 @@
 
 > Simple is better than complex.
 
+https://daylight-saving-time-satellus-score-website-20251024-6vy4q7ol1.vercel.app
+
 一个简洁的乐谱分享网站，用于记录和分享乐队排练过的曲目。
 
 ## 快速开始
